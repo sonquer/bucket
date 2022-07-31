@@ -1,11 +1,13 @@
 ﻿@page "/pods"
 
+@using Bucket.UseCases.Utils
 @using MediatR
 @using Bucket.Domain.Entities
 @using Bucket.UseCases.Commands
 @using Bucket.UseCases.Queries
 @using Bucket.UseCases.Services
 @using k8s.Models
+@using System.Text.Json
 @using Microsoft.Fast.Components.FluentUI
 
 @inject IMediator _mediator
@@ -23,10 +25,44 @@ else if (PodList == null || PodList.Items == null)
 }
 else
 {
-	@foreach (var pod in PodList.Items)
-	{
-		<p>@pod.Name(), @pod.Namespace()</p>
-	}
+	<table class='table'>
+		<thead>
+			<tr>
+				<th>Name</th>
+				<th>Namespace</th>
+				<th>Node</th>
+				<th>Ip</th>
+				<th>QoS</th>
+				<th>Phase</th>
+				<th>Options</th>
+			</tr>
+		</thead>
+		<tbody>
+			@foreach (var pod in PodList.Items)
+			{
+				<tr>
+					<td>@pod.Name()</td>
+					<td>@pod.Namespace()</td>
+					<td>@pod.Status.NominatedNodeName</td>
+					<td>@pod.Status.PodIP</td>
+					<td>@pod.Status.QosClass</td>
+					<td>
+						@if(pod.Metadata.DeletionGracePeriodSeconds.HasValue) 
+						{
+							<b style="color: red;">Terminating</b>
+						} 
+						else 
+						{
+							<b style="color: green;">@pod.Status.Phase</b>
+						}
+					</td>
+					<td>
+						<FluentButton @onclick="async () => await DeletePod(pod.Name(), pod.Namespace())">Delete</FluentButton>
+					</td>
+				</tr>
+			}
+		</tbody>
+	</table>
 }
 
 @code {
@@ -35,6 +71,26 @@ else
 	protected override async Task OnInitializedAsync()
 	{
 	    PodList = await _mediator.Send(new ListPodsInAllNamespacesQuery(), CancellationToken.None);
+		StateHasChanged();
+
+		using var timer = new PeriodicTimer(TimeSpan.FromSeconds(1));
+		while (await timer.WaitForNextTickAsync())
+		{
+			var podList = await _mediator.Send(new ListPodsInAllNamespacesQuery(), CancellationToken.None);
+			if (ObjectComparer<V1PodList>.IsSimilar(podList, PodList) == false)
+			{
+				PodList = podList;
+				StateHasChanged();
+			}
+		}
+	}
+
+	protected async Task DeletePod(string name, string nameSpace)
+	{
+		await _mediator.Publish(new DeletePodCommand(name, nameSpace), CancellationToken.None);
+
+		PodList = await _mediator.Send(new ListPodsInAllNamespacesQuery(), CancellationToken.None);
+
 		StateHasChanged();
 	}
 }
