@@ -5,17 +5,23 @@
 @using Bucket.Domain.Entities
 @using Bucket.UseCases.Commands
 @using Bucket.UseCases.Queries
+@using Bucket.UseCases.Services
 @using k8s.Models
 @using System.Text.Json
 @using Microsoft.Fast.Components.FluentUI
 
 @inject IMediator _mediator
+@inject CurrentContextService _currentContextService
 
 <h1>Nodes</h1>
 
-@if (NodeList == null || NodeList.Items == null)
+@if (_currentContextService.IsConnectedToCluster == false)
 {
-	<p><em>Loading...</em></p>
+	<b>Not connected to cluster...</b>
+}
+else if (NodeList == null || NodeList.Items == null)
+{
+	<FluentProgressRing />
 }
 else
 {
@@ -109,6 +115,7 @@ else
 	protected override async Task OnInitializedAsync()
 	{
 		NodeList = await _mediator.Send(new ListNodesQuery(), CancellationToken.None);
+		StateHasChanged();
 
 		using var timer = new PeriodicTimer(TimeSpan.FromSeconds(5));
 		while (await timer.WaitForNextTickAsync())

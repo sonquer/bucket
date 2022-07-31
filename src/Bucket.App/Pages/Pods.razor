@@ -4,14 +4,22 @@
 @using Bucket.Domain.Entities
 @using Bucket.UseCases.Commands
 @using Bucket.UseCases.Queries
+@using Bucket.UseCases.Services
 @using k8s.Models
+@using Microsoft.Fast.Components.FluentUI
+
 @inject IMediator _mediator
+@inject CurrentContextService _currentContextService
 
 <h1>Pods</h1>
 
-@if (PodList == null || PodList.Items == null)
+@if (_currentContextService.IsConnectedToCluster == false)
 {
-	<p><em>Loading...</em></p>
+	<b>Not connected to cluster...</b>
+}
+else if (PodList == null || PodList.Items == null)
+{
+	<FluentProgressRing />
 }
 else
 {
@@ -27,5 +35,6 @@ else
 	protected override async Task OnInitializedAsync()
 	{
 	    PodList = await _mediator.Send(new ListPodsInAllNamespacesQuery(), CancellationToken.None);
+		StateHasChanged();
 	}
 }
