@@ -1,0 +1,31 @@
+﻿@page "/pods"
+
+@using MediatR
+@using Bucket.Domain.Entities
+@using Bucket.UseCases.Commands
+@using Bucket.UseCases.Queries
+@using k8s.Models
+@inject IMediator _mediator
+
+<h1>Pods</h1>
+
+@if (PodList == null || PodList.Items == null)
+{
+	<p><em>Loading...</em></p>
+}
+else
+{
+	@foreach (var pod in PodList.Items)
+	{
+		<p>@pod.Name(), @pod.Namespace()</p>
+	}
+}
+
+@code {
+    public V1PodList PodList;
+
+	protected override async Task OnInitializedAsync()
+	{
+	    PodList = await _mediator.Send(new ListPodsInAllNamespacesQuery(), CancellationToken.None);
+	}
+}

@@ -1,0 +1,26 @@
+﻿@using MediatR
+@using Bucket.Domain.Entities
+@using Bucket.UseCases.Commands
+@using Bucket.UseCases.Queries
+@inject IMediator _mediator
+
+<div>
+    @foreach (var cluster in Clusters)
+    {
+        <button @onclick="async () => await SwitchClusterContext(cluster)">@cluster.Name</button>
+    }
+</div>
+
+@code {
+    public IEnumerable<ClusterEntity> Clusters = new List<ClusterEntity>();
+
+	protected override async Task OnInitializedAsync()
+    {
+        Clusters = await _mediator.Send(new ClusterConfigurationsQuery(), CancellationToken.None);
+    }
+
+    protected async Task SwitchClusterContext(ClusterEntity clusterEntity)
+    {
+        await _mediator.Publish(new SwitchCurrentClusterContextCommand(clusterEntity), CancellationToken.None);
+    }
+}
