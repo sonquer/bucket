@@ -4,6 +4,7 @@ using Bucket.Infrastructure.Repositories;
 using Bucket.UseCases;
 using Bucket.UseCases.Services;
 using MediatR;
+using Microsoft.Fast.Components.FluentUI;
 
 namespace Bucket.App
 {
@@ -30,6 +31,9 @@ namespace Bucket.App
             builder.Services.AddScoped<IClusterRepository, ClusterRepository>();
 
             builder.Services.AddMediatR(UseCasesDependencyInjection.Assembly);
+
+            builder.Services.AddFluentUIComponents();
+            builder.Services.AddHttpClient();
 
             return builder.Build();
         }

@@ -52,6 +52,7 @@
 
     <ItemGroup>
       <PackageReference Include="MediatR.Extensions.Microsoft.DependencyInjection" Version="10.0.1" />
+      <PackageReference Include="Microsoft.Fast.Components.FluentUI" Version="1.5.0" />
     </ItemGroup>
 
     <ItemGroup>

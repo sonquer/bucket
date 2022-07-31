@@ -1,0 +1,47 @@
+﻿@page "/cluster"
+            
+@using Bucket.UseCases.Utils
+@using MediatR
+@using Bucket.Domain.Entities
+@using Bucket.UseCases.Commands
+@using Bucket.UseCases.Queries
+@using k8s.Models
+
+@inject IMediator _mediator
+
+<h1>Cluster</h1>
+
+@if (NodeList == null || NodeList.Items == null)
+{
+	<p><em>Loading...</em></p>
+}
+else
+{
+	<div>
+		<p>Total CPU capacity: @TotalCPUsCapacity</p>
+		<p>Total Memory capacity: @TotalMemoryCapacity Ki</p>
+	</div>
+}
+
+@code {
+	public V1NodeList NodeList = new();
+
+	public long? TotalCPUsCapacity => NodeList?.Items?.Select(node => node.Status.Capacity["cpu"].Value)?.Sum(x => long.Parse(x));
+	public long? TotalMemoryCapacity => NodeList?.Items?.Select(node => node.Status.Capacity["memory"].Value.ToLower().Replace("ki", ""))?.Sum(x => long.Parse(x));
+
+	protected override async Task OnInitializedAsync()
+	{
+		NodeList = await _mediator.Send(new ListNodesQuery(), CancellationToken.None);
+
+		using var timer = new PeriodicTimer(TimeSpan.FromSeconds(1));
+		while (await timer.WaitForNextTickAsync())
+		{
+			var nodeList = await _mediator.Send(new ListNodesQuery(), CancellationToken.None);
+			if (ObjectComparer<V1NodeList>.IsSimilar(nodeList, NodeList) == false)
+			{
+				NodeList = nodeList;
+				StateHasChanged();
+			}
+		}
+	}
+}

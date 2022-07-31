@@ -1,0 +1,160 @@
+﻿@page "/nodes"
+            
+@using Bucket.UseCases.Utils
+@using MediatR
+@using Bucket.Domain.Entities
+@using Bucket.UseCases.Commands
+@using Bucket.UseCases.Queries
+@using k8s.Models
+@using System.Text.Json
+@using Microsoft.Fast.Components.FluentUI
+
+@inject IMediator _mediator
+
+<h1>Nodes</h1>
+
+@if (NodeList == null || NodeList.Items == null)
+{
+	<p><em>Loading...</em></p>
+}
+else
+{
+	<table class='table'>
+		<thead>
+			<tr>
+				<th>Name</th>
+				<th>Cpu</th>
+				<th>Memory</th>
+				<th>Storage</th>
+				<th>Pods</th>
+				<th>Taints</th>
+				<th>Architecture</th>
+				<th>Version</th>
+				<th>Age</th>
+				<th>Status</th>
+				<th>Options</th>
+			</tr>
+		</thead>
+		<tbody>
+			@foreach (var node in NodeList.Items)
+			{
+				<tr>
+					<td>@node.Name()</td>
+					<td>
+						<FluentProgress id="cpu-progress" Value=@CalculateMetric(node, "cpu").ToString() />
+						<FluentTooltip Anchor="cpu-progress">
+							Cpu: @CalculateMetric(node, "cpu")%, Allocatable: @node.Status.Allocatable["cpu"].Value, Capacity: @node.Status.Capacity["cpu"].Value
+						</FluentTooltip>
+					</td>
+					<td>
+						<FluentProgress id="memory-progress" Value=@CalculateMetric(node, "memory").ToString() />
+						<FluentTooltip Anchor="memory-progress">
+							Memory: @CalculateMetric(node, "memory")%, Allocatable: @node.Status.Allocatable["memory"].Value, Capacity: @node.Status.Capacity["memory"].Value
+						</FluentTooltip>
+					</td>
+					<td>
+						<FluentProgress id="ephemeral-storage-progress" Value=@CalculateMetric(node, "ephemeral-storage").ToString() />
+						<FluentTooltip Anchor="ephemeral-storage-progress">
+							Storage: @CalculateMetric(node, "ephemeral-storage")%, Allocatable: @node.Status.Allocatable["ephemeral-storage"].Value, Capacity: @node.Status.Capacity["ephemeral-storage"].Value
+						</FluentTooltip>
+					</td>
+					<td>
+						<FluentProgress id="pods-progress" Value=@CalculateMetric(node, "pods").ToString() />
+						<FluentTooltip Anchor="pods-progress">
+							Pods: @CalculateMetric(node, "pods")%, Allocatable: @node.Status.Allocatable["pods"].Value, Capacity: @node.Status.Capacity["pods"].Value
+						</FluentTooltip>
+					</td>
+					<td>
+						<p id="taints">@(node.Spec?.Taints?.Count() ?? 0)</p>
+						<FluentTooltip Anchor="taints">
+							@string.Join(",", node.Spec?.Taints?.Select(e => e.Key) ?? new List<string>())
+						</FluentTooltip>
+					</td>
+					<td>
+						@node.Status.NodeInfo.Architecture
+					</td>
+					<td>
+						@node.Status.NodeInfo.KubeletVersion
+					</td>
+					<td>
+						@Math.Round((DateTime.UtcNow - (node.CreationTimestamp() ?? DateTime.UtcNow)).TotalDays, 1)d
+					</td>
+					<td>
+						<b>@(node.Status.Conditions.FirstOrDefault(e => e.Type == "MemoryPressure")?.Status == "True" ? "MemoryPressure" : "") </b>
+						<b>@(node.Status.Conditions.FirstOrDefault(e => e.Type == "DiskPressure")?.Status == "True" ? "DiskPressure" : "") </b>
+						<b>@(node.Status.Conditions.FirstOrDefault(e => e.Type == "PIDPressure")?.Status == "True" ? "PIDPressure" : "") </b>
+						@if (node.Spec?.Taints is not null)
+						{
+							<b>@string.Join(",", node.Spec.Taints.Select(e => e.Effect))</b>
+						}
+						else
+						{
+							<b>@(node.Status.Conditions.FirstOrDefault(e => e.Type == "Ready")?.Status == "True" ? "Ready" : "NotReady") </b>
+						}
+					</td>
+					<td>
+						<FluentButton @onclick="async () => await DrainNode(node.Name())">Drain</FluentButton>
+						<FluentButton @onclick="async () => await CordonNode(node.Name())">Cordon</FluentButton>
+						<FluentButton @onclick="async () => await UncordonNode(node.Name())">Uncordon</FluentButton>
+					</td>
+				</tr>
+			}
+		</tbody>
+	</table>
+}
+
+@code {
+	protected V1NodeList NodeList = new();
+
+	protected override async Task OnInitializedAsync()
+	{
+		NodeList = await _mediator.Send(new ListNodesQuery(), CancellationToken.None);
+
+		using var timer = new PeriodicTimer(TimeSpan.FromSeconds(5));
+		while (await timer.WaitForNextTickAsync())
+		{
+			var nodeList = await _mediator.Send(new ListNodesQuery(), CancellationToken.None);
+			if (ObjectComparer<V1NodeList>.IsSimilar(nodeList, NodeList) == false)
+			{
+				NodeList = nodeList;
+				StateHasChanged();
+			}
+		}
+	}
+
+	protected double CalculateMetric(V1Node node, string metric)
+	{
+		var capacity = double.Parse(node.Status.Capacity[metric].Value.ToLower().Replace("ki", ""));
+		var allocable = double.Parse(node.Status.Allocatable[metric].Value.ToLower().Replace("ki", ""));
+		var used = capacity - allocable;
+
+		return used / capacity * 100.0d;
+	}
+	
+	protected async Task DrainNode(string nodeName) 
+	{
+		await _mediator.Publish(new DrainNodeCommand(nodeName), CancellationToken.None);
+
+		NodeList = await _mediator.Send(new ListNodesQuery(), CancellationToken.None);
+
+		StateHasChanged();
+	}
+
+	protected async Task CordonNode(string nodeName)
+	{
+		await _mediator.Publish(new CordonNodeCommand(nodeName), CancellationToken.None);
+
+		NodeList = await _mediator.Send(new ListNodesQuery(), CancellationToken.None);
+
+		StateHasChanged();
+	}
+
+	protected async Task UncordonNode(string nodeName)
+	{
+		await _mediator.Publish(new UncordonNodeCommand(nodeName), CancellationToken.None);
+
+		NodeList = await _mediator.Send(new ListNodesQuery(), CancellationToken.None);
+
+		StateHasChanged();
+	}
+}

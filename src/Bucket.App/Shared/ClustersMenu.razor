@@ -2,12 +2,13 @@
 @using Bucket.Domain.Entities
 @using Bucket.UseCases.Commands
 @using Bucket.UseCases.Queries
+@using Microsoft.Fast.Components.FluentUI
 @inject IMediator _mediator
 
 <div>
     @foreach (var cluster in Clusters)
     {
-        <button @onclick="async () => await SwitchClusterContext(cluster)">@cluster.Name</button>
+        <FluentButton @onclick="async () => await SwitchClusterContext(cluster)">@cluster.Name</FluentButton>
     }
 </div>
 
