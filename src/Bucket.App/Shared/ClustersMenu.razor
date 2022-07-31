@@ -3,21 +3,62 @@
 @using Bucket.UseCases.Commands
 @using Bucket.UseCases.Queries
 @using Microsoft.Fast.Components.FluentUI
+
 @inject IMediator _mediator
 
-<div>
+<div class="top-row ps-3 navbar navbar-dark">
+    <div class="container-fluid">
+    </div>
+</div>
+
+<div style="padding: 1em;">
     @foreach (var cluster in Clusters)
     {
-        <FluentButton @onclick="async () => await SwitchClusterContext(cluster)">@cluster.Name</FluentButton>
+        <div>
+            <FluentButton id="@cluster.Name" @onclick="async () => await SwitchClusterContext(cluster)">@ShortName(cluster.Name)</FluentButton>
+            <FluentTooltip Anchor="@cluster.Name">
+                @cluster.Name
+            </FluentTooltip>
+        </div>
     }
 </div>
 
 @code {
     public IEnumerable<ClusterEntity> Clusters = new List<ClusterEntity>();
 
-	protected override async Task OnInitializedAsync()
+    protected override async Task OnInitializedAsync()
     {
         Clusters = await _mediator.Send(new ClusterConfigurationsQuery(), CancellationToken.None);
+    }
+
+    protected string ShortName(string name) 
+    {
+        if (name.Length <= 1) 
+        {
+            return name[0].ToString().ToUpper();
+        }
+
+        var shortName = ShortNameByCharacter(name, ' ')
+            ?? ShortNameByCharacter(name, '-')
+            ?? ShortNameByCharacter(name, '.');
+
+        if (string.IsNullOrEmpty(shortName) == false) 
+        {
+            return shortName;
+        }
+
+        return $"{name[0].ToString().ToUpper()}{name[1].ToString().ToUpper()}";
+    }
+
+    private string ShortNameByCharacter(string name, char separator) 
+    {
+        if (name.Any(e => e == separator))
+        {
+            var split = name.Split(separator);
+            return $"{split[0][0].ToString().ToUpper()}{split[1][0].ToString().ToUpper()}";
+        }
+
+        return null;
     }
 
     protected async Task SwitchClusterContext(ClusterEntity clusterEntity)

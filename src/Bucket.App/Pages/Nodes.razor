@@ -131,11 +131,31 @@ else
 
 	protected double CalculateMetric(V1Node node, string metric)
 	{
-		var capacity = double.Parse(node.Status.Capacity[metric].Value.ToLower().Replace("ki", ""));
-		var allocable = double.Parse(node.Status.Allocatable[metric].Value.ToLower().Replace("ki", ""));
+		var capacity = 0.0d;
+		var capacityString = node.Status.Capacity[metric].Value.ToLower();
+		if (capacityString.Contains("ki")) 
+		{
+			capacity = double.Parse(capacityString.Replace("ki", "")) * 1024.0d;
+		} 
+		else 
+		{
+			capacity = double.Parse(capacityString);
+		}
+
+		var allocable = 0.0d;
+		var allocableString = node.Status.Allocatable[metric].Value.ToLower();
+		if (allocableString.Contains("ki"))
+		{
+			allocable = double.Parse(allocableString.Replace("ki", "")) * 1024.0d;
+		}
+		else
+		{
+			allocable = double.Parse(allocableString);
+		}
+
 		var used = capacity - allocable;
 
-		return used / capacity * 100.0d;
+		return Math.Round(used / capacity * 100.0d, 2);
 	}
 	
 	protected async Task DrainNode(string nodeName) 
